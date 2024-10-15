@@ -5,9 +5,10 @@ import os
 import emcee
 import corner
 import matplotlib.pyplot as plt
+import random
 from uncertainties import ufloat
 from astropy.timeseries import LombScargle
-#from PdotQuest.readata import tess_pytransit_bin
+from PdotQuest.readata import tess_pytransit_bin
 
 def set_epoch(te,p):
     e=[]
@@ -23,7 +24,7 @@ def plot_resi(ep,te,er):
     fig, ax = plt.subplots(figsize=(13,4), constrained_layout=True)
     ax.errorbar(ep, multi*(te-tlin), multi*er, fmt='.')
     ax.axhline(0, c='k', lw=1, ls='--')
-    plt.setp(ax, xlabel='Epoch', ylabel='Transit centre residuals [min]');
+    plt.setp(ax, xlabel='Epoch', ylabel='Timing residuals [min]');
     return fig
 
 def xi2(a,b,e):
@@ -36,7 +37,7 @@ def xi2(a,b,e):
     return x2
 
 class LinearFit:
-    def __init__(self,times,errors,period,rej_sigma=3):
+    def __init__(self,times,errors,period,rej_sigma=3,rej_mode='sad'):
         self.times = times
         self.errors = errors
         self.period = period
@@ -45,7 +46,7 @@ class LinearFit:
         self.p_est = [self.period - 0.0002, self.period + 0.0002]
         self.t0_est = [self.time0 - 0.05, self.time0 + 0.05]
         self.rej_sigma=rej_sigma
-#         self.rej_mode=rej_mode # 'sad'-standard absolute deviation,'mad'-median absolute deviation
+        self.rej_mode=rej_mode # 'sad'-standard absolute deviation,'mad'-median absolute deviation
         
     def functp0(self,theta):
         m=24*60*60*1000*365
@@ -91,7 +92,7 @@ class LinearFit:
             nwalkers, ndim, self.log_probability0,args=(ep,te,er)
         )
         sampler.run_mcmc(pos, 500, progress=True)
-        N_burn = 100
+        N_burn = 200
         samples = sampler.chain[:, N_burn:, :].reshape((-1, ndim))
 
         ###
@@ -110,10 +111,10 @@ class LinearFit:
     
     def filt_l_0(self,tn0):
         residuals0 = self.times-tn0
-#         if self.rej_mode == 'sad':
-        s0=self.rej_sigma*np.abs(np.std(residuals0))
-#         if self.rej_mode == 'mad':
-#             s0=self.rej_sigma*np.abs(np.median(residuals0))
+        if self.rej_mode == 'sad':
+            s0=self.rej_sigma*np.abs(np.std(residuals0))
+        if self.rej_mode == 'mad':
+            s0=self.rej_sigma*np.abs(np.median(residuals0))
         count = 0
         fl=[]
         for i in range(len(tn0)):
@@ -126,10 +127,10 @@ class LinearFit:
 
     def filt_l_n(self,tn0,fl):
         residuals = self.times-tn0
-#         if self.rej_mode == 'sad':
-        sn=self.rej_sigma*np.abs(np.std(residuals[fl]))
-#         if self.rej_mode == 'mad':
-#             sn=self.rej_sigma*np.abs(np.median(residuals[fl]))
+        if self.rej_mode == 'sad':
+            sn=self.rej_sigma*np.abs(np.std(residuals[fl]))
+        if self.rej_mode == 'mad':
+            sn=self.rej_sigma*np.abs(np.median(residuals[fl]))
         count = 0
         fln=[]
         for i in range(len(tn0)):
@@ -184,7 +185,7 @@ class LinearFit:
         plt.axhline(0, c='k', lw=1, ls='--')
         plt.fill_between(self.f_epp0, (self.sn0)*multi,(-self.sn0)*multi, alpha=0.2)
 
-        plt.ylabel("Transit centre residuals [s]",fontsize=14)
+        plt.ylabel("Timing residuals [s]",fontsize=14)
         plt.xlabel("Epoch",fontsize=14)
         plt.show()
         
@@ -192,23 +193,23 @@ class LinearFit:
     def BIC0(self):
         return xi2(self.f_time0,self.f_tn0l,self.f_error0)+2*np.log(len(self.f_tn0l))
     
-#     def plot_LombScargle(self):
-#         ls=LombScargle(self.f_epp0,self.f_time0-self.f_tn0l,self.f_error0)
-#         frequency, power = ls.autopower()
-#         print(power.max())
-#         #probabilities = [0.1, 0.05, 0.01]
-#         fap=ls.false_alarm_level(0.01)
-#         plt.rcParams['figure.figsize'] = [13,4]
-#         plt.plot(frequency, power)
-#         plt.axhline(fap, c='k', lw=1, ls='--',label='FAP=1%')
-#         plt.ylabel("Lomb-Scargle Power",fontsize=14)
-#         #plt.xlabel("period [days]",fontsize=14)
-#         plt.xlabel("Frequency [days]",fontsize=14)
-#         plt.legend(loc='upper right')
-#         plt.show()
+    def plot_LombScargle(self):
+        ls=LombScargle(self.f_epp0,self.f_time0-self.f_tn0l,self.f_error0)
+        frequency, power = ls.autopower()
+        print(power.max())
+        #probabilities = [0.1, 0.05, 0.01]
+        fap=ls.false_alarm_level(0.01)
+        plt.rcParams['figure.figsize'] = [13,4]
+        plt.plot(frequency, power)
+        plt.axhline(fap, c='k', lw=1, ls='--',label='FAP=1%')
+        plt.ylabel("Lomb-Scargle Power",fontsize=14)
+        #plt.xlabel("period [days]",fontsize=14)
+        plt.xlabel("Frequency [days]",fontsize=14)
+        plt.legend(loc='upper right')
+        plt.show()
     
 class QuadraFit():
-    def __init__(self,times,errors,period,a_est=[-100,0],rej_sigma=3):
+    def __init__(self,times,errors,period,a_est=[-100,0],rej_sigma=3,rej_mode='sad'):
         self.times = times
         self.errors = errors
         self.period = period
@@ -218,7 +219,7 @@ class QuadraFit():
         self.t0_est = [self.time0 - 0.05, self.time0 + 0.05]
         self.a_est = a_est
         self.rej_sigma=rej_sigma
-#         self.rej_mode=rej_mode
+        self.rej_mode=rej_mode
         
     def functp(self,theta):
         m=24*60*60*1000*365
@@ -270,7 +271,7 @@ class QuadraFit():
             nwalkers, ndim, self.log_probability,args=(ep,tt,er)
         )
         sampler.run_mcmc(pos, 500, progress=True)
-        N_burn = 100
+        N_burn = 200
         self.samples = sampler.chain[:, N_burn:, :].reshape((-1, ndim))
 
         ###
@@ -288,10 +289,10 @@ class QuadraFit():
         return tn0
     
     def filt_bl_0(self,tn0):
-#         if self.rej_mode == 'sad':
-        s0=self.rej_sigma*np.abs(np.std(self.times-tn0))
-#         if self.rej_mode == 'mad':
-#             s0=self.rej_sigma*np.abs(np.median(self.times-tn0))
+        if self.rej_mode == 'sad':
+            s0=self.rej_sigma*np.abs(np.std(self.times-tn0))
+        if self.rej_mode == 'mad':
+            s0=self.rej_sigma*np.abs(np.median(self.times-tn0))
         count = 0
         bl=[]
         for i in range(len(tn0)):
@@ -303,10 +304,10 @@ class QuadraFit():
         return s0,bl,count
 
     def filt_bl_n(self,tn0,bl):
-#        if self.rej_mode == 'sad':
-        sn=self.rej_sigma*np.abs(np.std(self.times[bl]-tn0[bl]))
-#         if self.rej_mode == 'mad':
-#             sn=self.rej_sigma*np.abs(np.median(self.times[bl]-tn0[bl]))
+        if self.rej_mode == 'sad':
+            sn=self.rej_sigma*np.abs(np.std(self.times[bl]-tn0[bl]))
+        if self.rej_mode == 'mad':
+            sn=self.rej_sigma*np.abs(np.median(self.times[bl]-tn0[bl]))
         count = 0
         bln=[]
         for i in range(len(tn0)):
@@ -417,6 +418,47 @@ class QuadraFit():
         plt.ylabel("Timing residuals [" + self.unitt + "]",fontsize=14)
         plt.xlabel("Epoch",fontsize=14)
         plt.show()
+    
+    def download_oc(self,txtname='O-C'):
+        self.txtname=txtname
+
+        rt=np.loadtxt('tess_pytransit.txt', delimiter=',')
+        etime=np.array(rt[:,1])
+
+        tn,pn=self.functp((self.a0[0],self.t0_0[0],self.p0_0[0]))
+        tnl,pl=self.lin.functp0((self.lin.p0[0],self.lin.t0_0[0]))
+        tn = np.array(tn)
+        tnl = np.array(tnl)
+        
+        tf=[]
+        for i in range(len(self.f_time)):
+            tf.append(self.f_time[i] in etime)
+        tf=np.array(tf)
+        
+        folder = os.path.exists(self.txtname) 
+        if not folder:
+            os.makedirs(self.txtname) 
+            
+        f = open(self.txtname +'//'+ 'simu.txt', 'w')
+        for i in range(0,self.emax):
+            f.write(str(list(range(0,self.emax))[i])+','+str((tn[0:self.emax]-tnl[0:self.emax])[i])+'\n')
+        f.close()
+        f = open(self.txtname + '//'+ 'ref.txt', 'w')
+        for i in range(len(self.f_epp[~tf])):
+            f.write(str(self.f_epp[~tf][i])+','+str(self.f_time[~tf][i]-self.f_tn0l1[~tf][i])+','+str(self.f_error[~tf][i])+'\n')
+        f.close()
+        f = open(self.txtname + '//'+ 'tess.txt', 'w')
+        for i in range(len(self.f_epp[tf])):
+            f.write(str(self.f_epp[tf][i])+','+str(self.f_time[tf][i]-self.f_tn0l1[tf][i])+','+str(self.f_error[tf][i])+'\n')
+        f.close()
+        f = open(self.txtname + '//'+ 'elim.txt', 'w')
+        for i in range(len(self.a_epp)):
+            f.write(str(self.a_epp[i])+','+str(self.a_time[i]-self.a_tn0l1[i])+','+str(self.a_error[i])+'\n')
+        f.close()
+        f = open(self.txtname + '//'+ 'td.txt', 'w')
+        for i in range(len(self.top)):
+            f.write(str(list(range(0,self.emax))[i])+','+str(self.top[i])+','+str(self.down[i])+'\n')
+        f.close()
         
     def qorner(self):
         fig = corner.corner(self.samples, labels=["$a$", "$t0$","$p0$"],
@@ -429,8 +471,55 @@ class QuadraFit():
         ae = max(self.a0[1],self.a0[2])
         t = ufloat(self.t0_0[0],max(self.t0_0[1],self.t0_0[2]))
         p = ufloat(self.p0_0[0],max(self.p0_0[1],self.p0_0[2]))
-        print('Orbital period change rate is %.3f'% self.a0[0],'+/- %.3f'% ae,'ms/yr')
-        print('The fitted t0 is',t,'days')
-        print('The set t0 is',self.times[0])
-        print('The fitted p0 is',p,'days')
-        print('The set p0 is',self.period)
+        print('轨道周期变化率为 %.3f'% self.a0[0],'+/- %.3f'% ae,'ms/yr')
+        print('拟合的t0为',t,'days')
+        print('设定的t0为',self.times[0])
+        print('拟合的p0为',p,'days')
+        print('设定的p0为',self.period)
+
+def mock_lin_data(time,er,ep,p0,a):
+    m=24*60*60*1000*365
+    nl=ep[-1]+1
+    
+    c, ccov = np.polyfit(set_epoch(time,p0), time, deg=1, w=1/er, cov=True)
+    
+    t=[np.nan]*nl
+    p=[np.nan]*nl
+    t[0]=time[0]
+    p[0]=c[0]
+    
+    for j in range(1,nl):
+        t[j]=t[j-1]+p[j-1]
+        p[j]=(1+a/(2*m))/(1-a/(2*m))*p[j-1]
+    t=np.array(t)
+    t=t[ep]
+    
+    return t
+    
+def mockdata(time, er, p0, a, yr, sigma1, n, ex=False, en=0):
+    ep = set_epoch(time, p0)
+    nep = np.linspace(ep[-1], round(ep[-1] + yr * 365 / p0), n + 1)[1:]
+    nep = np.round(nep).astype(int)  # new epoch
+    print(nep)
+    
+    if ex:  # 如果ex为True
+        enep = []  # expand epoch
+        for num in nep:
+            enep.extend(range(num, num + en))
+        print(enep)
+        epp = np.concatenate((ep, enep))
+    else:
+        epp = np.concatenate((ep, nep))
+    
+    tm = mock_lin_data(time, er, epp, p0, a)
+    
+    mu1 = 0
+    mu2 = sigma1
+    sigma2 = sigma1 / 10
+    em = np.zeros(len(epp))
+    
+    for i in range(len(tm)):
+        tm[i] += random.gauss(mu1, sigma1)
+        em[i] += abs(random.gauss(mu2, sigma2))
+    
+    return tm, em
