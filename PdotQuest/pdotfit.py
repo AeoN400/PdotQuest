@@ -465,7 +465,7 @@ class QuadraFit():
                       truths=[self.a0[0], self.t0_0[0],self.p0_0[0]])
 
     def BICq(self):
-        return xi2(self.f_time,self.f_tn0,self.f_error)+2*np.log(len(self.f_tn0))
+        return xi2(self.f_time,self.f_tn0,self.f_error)+3*np.log(len(self.f_tn0))
     
     def print_posterior(self):
         ae = max(self.a0[1],self.a0[2])
