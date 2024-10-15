@@ -4,4 +4,5 @@ This software allows for the efficient fitting of data by simply inputting a col
 Contact via aeon400@foxmail.com if you have any question.
 
 2024/10/25 update
+
 Added the function of fitting simulation data and corrected the calculation errors of BICq.
